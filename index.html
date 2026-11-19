@@ -140,7 +140,7 @@ function physics(dt){
    const surface=oceanHeight(wx);
    const depth=wy-surface;
    const wet=Math.max(0,Math.min(1,depth+.5));
-   if(wet>0){sub+=wet;const lift=(b.buoyancy??(b.type==='float'?2.1:b.type==='balloon'?2.8:b.type==='ballast'?.12:.42))*density*wet;buoy+=lift;torque+=(-p.lx*Math.cos(body.angle)+p.ly*Math.sin(body.angle))*lift*gravity*.045;}
+   if(wet>0){sub+=wet;const lift=(b.buoyancy??(b.type==='float'?2.6:b.type==='balloon'?3.2:b.type==='ballast'?.05:b.type==='wood'?.92:b.type==='rubber'?.72:b.type==='steel'?.12:b.type==='stone'?.04:b.type==='glass'?.18:b.type==='motor'?.25:b.type==='propeller'?.18:.55))*density*wet;buoy+=lift;torque+=(p.lx*Math.cos(body.angle)-p.ly*Math.sin(body.angle))*lift*gravity*.045;}
    if(b.type==='motor'||b.type==='propeller'){
     const spin=(b.speed??(b.type==='propeller'?12:5));
     b.spin=(b.spin||0)+spin*dt;
