@@ -50,6 +50,7 @@ const defs=[
 const blocks=new Map(), water=new Float32Array(W*H),velX=new Float32Array(W*H),velY=new Float32Array(W*H),temperature=new Float32Array(W*H);
 let selectedTool='wood',selected=null,running=false,simTime=0,acc=0,last=0,frame=0,fps=0,cam={x:0,y:0,z:1},pointer={x:0,y:0},drag=null,space=false,clipboard=null,worldType='still',waveStrength=.35,waterLevel=.58;
 const key=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&y>=0&&x<W&&y<H,blockAt=(x,y)=>blocks.get(key(x,y));
+function oceanHeight(wx){const scale=worldType==='tsunami'?1.45:worldType==='waves'?1:.14,t=simTime;const swell=Math.sin(wx*.035-t*.78)*2+Math.sin(wx*.071-t*1.18+1.4)*.9+Math.sin(wx*.014-t*.38)*2.8;const chop=Math.sin(wx*.19-t*2.3)*.22+Math.sin(wx*.31-t*1.7)*.12;const pulse=worldType==='tsunami'?Math.exp(-Math.pow((wx-(t*17%1200))/13,2))*19:0;return H*(1-waterLevel)-(swell*scale*waveStrength*1.7+chop*scale*waveStrength+pulse*waveStrength);}
 function addBlock(x,y,type=selectedTool,props={}){if(!inside(x,y)||type==='select'||type==='erase')return;blocks.set(key(x,y),{x,y,type,...props,angle:props.angle||0,vx:props.vx||0,vy:props.vy||0,omega:props.omega||0,health:props.health??100});}
 function removeBlock(x,y){blocks.delete(key(x,y));if(selected&&selected.x===x&&selected.y===y)selected=null}
 function generate(type=worldType){water.fill(0);velX.fill(0);velY.fill(0);worldType=type;waterLevel=+$('level').value/100;waveStrength=+$('wave').value/100;if(type==='empty')return;for(let x=0;x<W;x++){let surface=Math.floor(H*(1-waterLevel));if(type==='waves')surface+=Math.round(Math.sin(x*.09)*waveStrength*10+Math.sin(x*.027)*waveStrength*6);if(type==='tsunami')surface+=Math.round(Math.sin(x*.045)*waveStrength*5);for(let y=Math.max(0,surface);y<H;y++)water[key(x,y)]=1;}if(type==='tsunami'){for(let x=0;x<Math.min(28,W);x++){let h=Math.max(0,Math.round(18*Math.exp(-x/16)));for(let y=Math.max(0,Math.floor(H*(1-waterLevel))-h);y<H;y++)water[key(x,y)]=1;velX[key(x,Math.floor(H*(1-waterLevel)))]=8;}}}
@@ -59,14 +60,14 @@ function screenToWorld(sx,sy){let r=stage.getBoundingClientRect();return {x:Math
 function worldToScreen(x,y){return {x:cam.x+x*CELL*cam.z,y:cam.y+y*CELL*cam.z}}
 function draw(){let r=stage.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.fillStyle='#101820';ctx.fillRect(0,0,r.width,r.height);let size=CELL*cam.z,x0=Math.max(0,Math.floor(-cam.x/size)),y0=Math.max(0,Math.floor(-cam.y/size)),x1=Math.min(W,Math.ceil((r.width-cam.x)/size)),y1=Math.min(H,Math.ceil((r.height-cam.y)/size));
 /* Procedural infinite ocean: generated continuously in world coordinates. */
-function oceanHeight(wx){const scale=worldType==='tsunami'?1.45:worldType==='waves'?1:.14,t=simTime;const swell=Math.sin(wx*.035-t*.78)*2+Math.sin(wx*.071-t*1.18+1.4)*.9+Math.sin(wx*.014-t*.38)*2.8;const chop=Math.sin(wx*.19-t*2.3)*.22+Math.sin(wx*.31-t*1.7)*.12;const pulse=worldType==='tsunami'?Math.exp(-Math.pow((wx-(t*17%1200))/13,2))*19:0;return H*(1-waterLevel)-(swell*scale*waveStrength*1.7+chop*scale*waveStrength+pulse*waveStrength);}
+
 const viewW=r.width,viewH=r.height,worldLeft=-cam.x/(CELL*cam.z),stepPx=Math.max(2,Math.min(6,CELL*cam.z*.3));
 ctx.beginPath();let first=true;for(let px=0;px<=viewW+stepPx;px+=stepPx){const wx=worldLeft+px/(CELL*cam.z),sy=cam.y+oceanHeight(wx)*CELL*cam.z;if(first){ctx.moveTo(px,sy);first=false}else ctx.lineTo(px,sy);}ctx.lineTo(viewW,viewH+20);ctx.lineTo(0,viewH+20);ctx.closePath();
 const seaGrad=ctx.createLinearGradient(0,0,0,viewH);seaGrad.addColorStop(0,'#287da5');seaGrad.addColorStop(.16,'#155477');seaGrad.addColorStop(.65,'#103b59');seaGrad.addColorStop(1,'#0b263d');ctx.fillStyle=seaGrad;ctx.fill();
 ctx.beginPath();first=true;for(let px=0;px<=viewW+stepPx;px+=stepPx){const wx=worldLeft+px/(CELL*cam.z),sy=cam.y+oceanHeight(wx)*CELL*cam.z;if(first){ctx.moveTo(px,sy);first=false}else ctx.lineTo(px,sy);}ctx.strokeStyle='rgba(183,232,255,.8)';ctx.lineWidth=1.5;ctx.stroke();
 ctx.save();ctx.globalAlpha=.13;ctx.lineWidth=1;for(let band=0;band<5;band++){ctx.beginPath();for(let px=0;px<=viewW+8;px+=8){const wx=worldLeft+px/(CELL*cam.z),yy=cam.y+(oceanHeight(wx)+2.5+band*2.2+Math.sin(wx*.06-simTime*1.4+band)*.6)*CELL*cam.z;if(px===0)ctx.moveTo(px,yy);else ctx.lineTo(px,yy);}ctx.strokeStyle=band%2?'#9bdcf6':'#d4f3ff';ctx.stroke();}ctx.restore();
 if(size>=9){ctx.strokeStyle='rgba(190,210,225,.075)';ctx.lineWidth=1;ctx.beginPath();for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)if(water[key(x,y)]<.08){let p=worldToScreen(x,y);ctx.rect(p.x,p.y,size,size)}ctx.stroke()}
-for(const b of blocks.values()){if(b.x<x0-2||b.x>x1+2||b.y<y0-2||b.y>y1+2)continue;let p=worldToScreen(b.x,b.y),s=size;ctx.save();ctx.translate(p.x+s/2,p.y+s/2);ctx.rotate(b.angle||0);ctx.fillStyle=defs.find(d=>d[0]===b.type)?.[2]||'#aaa';ctx.strokeStyle='#101820';ctx.lineWidth=1.2;ctx.fillRect(-s*.47,-s*.47,s*.94,s*.94);ctx.strokeRect(-s*.47,-s*.47,s*.94,s*.94);
+for(const b of blocks.values()){if(b.x<x0-2||b.x>x1+2||b.y<y0-2||b.y>y1+2)continue;let bpX=b.px??b.x,bpY=b.py??b.y,p=worldToScreen(bpX,bpY),s=size;ctx.save();ctx.translate(p.x+s/2,p.y+s/2);ctx.rotate(b.renderAngle??b.angle??0);ctx.fillStyle=defs.find(d=>d[0]===b.type)?.[2]||'#aaa';ctx.strokeStyle='#101820';ctx.lineWidth=1.2;ctx.fillRect(-s*.47,-s*.47,s*.94,s*.94);ctx.strokeRect(-s*.47,-s*.47,s*.94,s*.94);
 if(b.type==='glass'){ctx.fillStyle='#d5f5ff88';ctx.fillRect(-s*.38,-s*.38,s*.76,s*.76)}if(b.type==='motor'||b.type==='propeller'){ctx.strokeStyle='#222';ctx.lineWidth=Math.max(1,s*.1);ctx.beginPath();ctx.arc(0,0,s*.25,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(-s*.35,0);ctx.lineTo(s*.35,0);ctx.stroke()}if(b.type==='cannon'){ctx.fillStyle='#252b31';ctx.fillRect(-s*.15,-s*.38,s*.3,s*.8)}if(b.type==='float'||b.type==='balloon'){ctx.strokeStyle='#fff8';ctx.beginPath();ctx.arc(0,0,s*.32,0,Math.PI*2);ctx.stroke()}if(b.type==='anchor'){ctx.strokeStyle='#252b31';ctx.beginPath();ctx.moveTo(0,-s*.3);ctx.lineTo(0,s*.25);ctx.lineTo(-s*.3,s*.12);ctx.moveTo(0,s*.25);ctx.lineTo(s*.3,s*.12);ctx.stroke()}ctx.restore();if(selected===b){ctx.strokeStyle='#8bc5ff';ctx.lineWidth=2;ctx.strokeRect(p.x-2,p.y-2,s+4,s+4)}}
 if(drag&&drag.start&&drag.end){ctx.strokeStyle='#a8d3ff';ctx.setLineDash([5,4]);let a=worldToScreen(Math.min(drag.start.x,drag.end.x),Math.min(drag.start.y,drag.end.y)),b=worldToScreen(Math.max(drag.start.x,drag.end.x)+1,Math.max(drag.start.y,drag.end.y)+1);ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.setLineDash([])}
 $('countLabel').textContent=blocks.size+' blocks';$('waterLabel').textContent='Water: '+Math.round(water.reduce((a,b)=>a+b,0)/(W*H)*100)+'%';$('objectsStat').textContent=blocks.size;$('cellsStat').textContent=Math.round(water.reduce((a,b)=>a+b,0));}
@@ -115,52 +116,63 @@ function connectedAssemblies(){
 }
 function physics(dt){
  simTime+=dt;
- const gravity=+$('gravity').value,density=+$('density').value,visc=+$('viscosity').value;
- /* Water moves as a volume, not as independent disappearing pixels. Pressure
-    spreads sideways when a column is full; horizontal flow is damped by viscosity. */
- /* Infinite ocean reservoir: refresh local water from the procedural sea. */
- for(let x=0;x<W;x++){const top=Math.max(0,Math.min(H,Math.floor(oceanHeight(x))));for(let y=0;y<H;y++){const i=key(x,y);water[i]=y>=top&&!blockAt(x,y)?1:0;velX[i]=0;velY[i]=0;}}
- const air=+$('air').value,waterDrag=+$('waterDrag').value;
- const assemblies=connectedAssemblies();
- /* Each orthogonally connected group is a welded rigid assembly: all cells
-    share one velocity and are committed to the grid together. Anchors pin
-    their entire assembly. This prevents motors/weight from tearing ships apart. */
- assemblies.sort((a,b)=>Math.max(...b.map(v=>v.y))-Math.max(...a.map(v=>v.y)));
- const claimed=new Set();
- for(const group of assemblies){
+ const gravity=+$('gravity').value,density=+$('density').value,air=+$('air').value,waterDrag=+$('waterDrag').value;
+ // Refill the local simulation window from the endless procedural sea.
+ for(let x=0;x<W;x++){const top=Math.max(0,Math.min(H,Math.floor(oceanHeight(x))));for(let y=0;y<H;y++){const i=key(x,y);water[i]=y>=top&&!blockAt(x,y)?1:0;}}
+ const groups=connectedAssemblies();
+ for(const group of groups){
+  let body=group.find(b=>b._body)?. _body;
+  if(!body){
+   const cx=group.reduce((v,b)=>v+(b.px??b.x),0)/group.length,cy=group.reduce((v,b)=>v+(b.py??b.y),0)/group.length;
+   body={cx,cy,vx:0,vy:0,angle:0,omega:0,locals:group.map(b=>({b,lx:b.x-cx,ly:b.y-cy}))};
+  }else{
+   // Newly joined pieces are incorporated into the existing rigid body.
+   for(const b of group)if(!body.locals.some(p=>p.b===b)){body.locals.push({b,lx:b.x-body.cx,ly:b.y-body.cy});}
+   body.locals=body.locals.filter(p=>group.includes(p.b));
+  }
+  for(const p of body.locals)p.b._body=body;
   const pinned=group.some(b=>b.type==='anchor'||b.pinned);
-  const mass=group.reduce((s,b)=>s+(b.mass??(b.type==='ballast'?2:b.type==='float'?.45:1)),0);
-  let submerged=0,buoyancy=0,thrustX=0,thrustY=0;
-  for(const b of group){
-   for(const [ox,oy] of [[0,0],[1,0],[0,1],[1,1]])if(inside(b.x+ox,b.y+oy)&&water[key(b.x+ox,b.y+oy)]>.35){submerged++;buoyancy+=(b.buoyancy??(b.type==='float'?2.1:b.type==='balloon'?2.8:b.type==='ballast'?.12:.42))*density;}
-   if(b.type==='motor'||b.type==='propeller'){const power=b.power??(b.type==='motor'?8:12),ang=b.angle||0;thrustX+=Math.cos(ang)*power;thrustY+=Math.sin(ang)*power;}
+  let mass=0,buoy=0,sub=0,forceX=0,forceY=0,torque=0;
+  for(const p of body.locals){
+   const b=p.b,m=b.mass??(b.type==='ballast'?2:b.type==='float'?.45:1);mass+=m;
+   const wx=body.cx+p.lx*Math.cos(body.angle)-p.ly*Math.sin(body.angle);
+   const wy=body.cy+p.lx*Math.sin(body.angle)+p.ly*Math.cos(body.angle);
+   const surface=oceanHeight(wx);
+   const depth=wy-surface;
+   const wet=Math.max(0,Math.min(1,depth+.5));
+   if(wet>0){sub+=wet;const lift=(b.buoyancy??(b.type==='float'?2.1:b.type==='balloon'?2.8:b.type==='ballast'?.12:.42))*density*wet;buoy+=lift;torque+=(-p.lx*Math.cos(body.angle)+p.ly*Math.sin(body.angle))*lift*gravity*.045;}
+   if(b.type==='motor'||b.type==='propeller'){
+    const spin=(b.speed??(b.type==='propeller'?12:5));
+    b.spin=(b.spin||0)+spin*dt;
+    const a=body.angle+(b.angle||0);
+    const power=(b.power??(b.type==='propeller'?16:8));
+    // Propellers push water backwards; engine/motor blocks transmit thrust to the welded craft.
+    const efficiency=b.type==='propeller'?1.35:.72;
+    forceX+=Math.cos(a)*power*efficiency;forceY+=Math.sin(a)*power*efficiency;
+    body.omega+=Math.sin(a-body.angle)*power*.0015*dt;
+   }
   }
-  const lead=group[0];let vx=lead.vx||0,vy=lead.vy||0;
-  for(const b of group){vx+=((b.vx||0)-vx)*.18;vy+=((b.vy||0)-vy)*.18;}
+  mass=Math.max(.1,mass);
   if(!pinned){
-   const displaced=Math.min(mass*1.8,buoyancy);
-   vy+=(gravity-displaced*gravity/Math.max(1,mass))*dt;
-   vx+=thrustX/Math.max(1,mass)*dt*.7;vy+=thrustY/Math.max(1,mass)*dt*.7;
-   const dragFactor=Math.max(.05,1-air*dt-waterDrag*submerged/Math.max(1,group.length)*dt*.012);
-   vx*=dragFactor;vy*=dragFactor;
-  }else{vx=0;vy=0}
-  let dx=Math.trunc(vx*dt),dy=Math.trunc(vy*dt);
-  /* Sub-cell velocity is retained; move the whole assembly only at cell boundaries. */
-  let fx=(lead.fx||0)+vx*dt,fy=(lead.fy||0)+vy*dt;
-  dx=Math.trunc(fx);dy=Math.trunc(fy);
-  if(dx){fx-=dx}if(dy){fy-=dy}
-  let canMove=(dx!==0||dy!==0);
-  if(canMove){
-   const own=new Set(group.map(b=>key(b.x,b.y)));
-   for(const b of group){const tx=b.x+dx,ty=b.y+dy,k=key(tx,ty);if(!inside(tx,ty)||(!own.has(k)&&blocks.has(k))){canMove=false;break;}}
-   if(canMove){for(const b of group)blocks.delete(key(b.x,b.y));for(const b of group){b.x+=dx;b.y+=dy;blocks.set(key(b.x,b.y),b);}}
-   else{if(dx)vx*=-.12;if(dy)vy*=-.12;fx=0;fy=0}
+   body.vy+=(gravity-buoy*gravity/mass)*dt;
+   body.vx+=forceX/mass*dt*1.8;body.vy+=forceY/mass*dt*1.8;
+   const drag=Math.max(.02,1-air*dt-waterDrag*(sub/Math.max(1,group.length))*dt*.018);
+   body.vx*=drag;body.vy*=drag;
+   body.omega+=torque/mass*dt;
+   body.omega*=Math.max(.02,1-(.8+waterDrag*.12)*dt);
+   body.cx+=body.vx*dt;body.cy+=body.vy*dt;body.angle+=body.omega*dt;
+  }else{body.vx=body.vy=body.omega=0;}
+  // Soft boundary response, not grid snapping: the build grid never quantizes motion.
+  let minY=Infinity,maxY=-Infinity;
+  for(const p of body.locals){const y=body.cy+p.lx*Math.sin(body.angle)+p.ly*Math.cos(body.angle);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
+  if(maxY>H-1){body.cy-=maxY-(H-1);body.vy=Math.min(0,body.vy)*-.12;body.omega*=.8;}
+  for(const p of body.locals){
+   const b=p.b;b.px=body.cx+p.lx*Math.cos(body.angle)-p.ly*Math.sin(body.angle);
+   b.py=body.cy+p.lx*Math.sin(body.angle)+p.ly*Math.cos(body.angle);
+   b.renderAngle=body.angle+(b.type==='motor'||b.type==='propeller'?(b.spin||0):0);
+   b.vx=body.vx;b.vy=body.vy;
   }
-  for(const b of group){b.vx=vx;b.vy=vy;b.fx=fx;b.fy=fy;if(b.type==='motor'||b.type==='propeller')b.angle+=(b.speed??4)*dt;}
  }
- /* Wave slope nudges floating assemblies. */
- if(worldType==='waves'||worldType==='tsunami'){for(const group of connectedAssemblies()){let cx=0;for(const b of group)cx+=b.x;cx/=group.length;const slope=oceanHeight(cx+1)-oceanHeight(cx-1);for(const b of group)if(!b.pinned&&b.type!=='anchor'){b.vx-=slope*dt*.35;b.vy+=Math.abs(slope)*dt*.08;}}}
-
 }
 function generate(type=worldType){water.fill(0);velX.fill(0);velY.fill(0);worldType=type;waterLevel=+$('level').value/100;waveStrength=+$('wave').value/100;simTime=0;for(let x=0;x<W;x++){const top=Math.max(0,Math.min(H,Math.floor(oceanHeight(x))));for(let y=top;y<H;y++)if(!blockAt(x,y))water[key(x,y)]=1;}}
 
