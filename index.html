@@ -14,11 +14,11 @@ label{display:block;color:#aaa;font-size:11px;margin:9px 0 5px}input[type=number
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="brand">◈ <span>water</span>works</div><div class="sep"></div><button id="play" class="primary">▶ Play</button><button id="step">Step</button><button id="clearWater" class="optional">Clear water</button><div class="sep optional"></div><label class="pill" style="margin:0">Speed</label><select id="speed" style="width:82px;padding:5px"><option value=".25">0.25×</option><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><div class="spacer"></div><button id="copy">Copy</button><button id="paste">Paste</button><button id="save" class="optional">Save</button><button id="load" class="optional">Load</button></header>
+<header class="top"><div class="brand">◈ <span>water</span>works</div><div class="sep"></div><button id="play" class="primary">▶ Play</button><button id="step">Step</button><button id="rotateShip" class="optional">Rotate ship ↻</button><button id="clearWater" class="optional">Clear water</button><div class="sep optional"></div><label class="pill" style="margin:0">Speed</label><select id="speed" style="width:82px;padding:5px"><option value=".25">0.25×</option><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><div class="spacer"></div><button id="copy">Copy</button><button id="paste">Paste</button><button id="save" class="optional">Save</button><button id="load" class="optional">Load</button></header>
 <main class="main">
 <aside class="side">
 <div class="group"><div class="section">Build tools</div><div class="tools" id="tools"></div></div>
-<div class="group"><div class="section">World generation</div><label>Water preset</label><select id="world"><option value="still">Still water</option><option value="waves">Wavy water</option><option value="tsunami">Tsunami</option><option value="empty">No water</option></select><button class="wide" id="generate">Generate world</button><label>Water level <span id="levelVal" class="muted">58%</span></label><input id="level" type="range" min="15" max="85" value="58"><label>Wave strength <span id="waveVal" class="muted">35%</span></label><input id="wave" type="range" min="0" max="100" value="35"></div>
+<div class="group"><div class="section">World generation</div><label>Water preset</label><select id="world"><option value="still">Still water</option><option value="waves">Wavy water</option><option value="tsunami">Tsunami</option><option value="coast">Coastline</option><option value="islands">Island chain</option><option value="empty">No water</option></select><button class="wide" id="generate">Generate world</button><label>Water level <span id="levelVal" class="muted">58%</span></label><input id="level" type="range" min="15" max="85" value="58"><label>Wave strength <span id="waveVal" class="muted">35%</span></label><input id="wave" type="range" min="0" max="100" value="35"></div>
 <div class="group"><div class="section">Blueprints</div><input id="blueName" type="text" placeholder="Blueprint name"><button class="wide" id="saveBlueprint">Save selection / ship</button><select id="blueList" class="wide"><option value="">Saved blueprints…</option></select><div class="row"><button id="loadBlueprint">Load</button><button id="deleteBlueprint">Delete</button></div></div>
 <div class="hint">Left click to place. Right click or erase to remove. Drag to paint. Middle mouse / Space + drag to pan. Scroll to zoom. Select a block to inspect its settings.</div>
 </aside>
@@ -87,13 +87,114 @@ function serialize(){return {blocks:[...blocks.values()],water:Array.from(water)
 function restore(data){blocks.clear();for(const b of data.blocks||[])blocks.set(key(b.x,b.y),b);if(data.water)water.set(data.water);worldType=data.worldType||'still';$('world').value=worldType;$('level').value=data.level||58;$('wave').value=data.wave||35;for(const [k,v]of Object.entries(data.physics||{}))if($(k))$(k).value=v;renderInspector();draw()}
 function blueprints(){let all=JSON.parse(localStorage.getItem('waterworks-blueprints')||'{}');let list=$('blueList');list.innerHTML='<option value="">Saved blueprints…</option>';for(const n of Object.keys(all)){let o=document.createElement('option');o.value=n;o.textContent=n;list.append(o)}}
 $('play').onclick=()=>{running=!running;$('play').textContent=running?'Ⅱ Pause':'▶ Play';$('play').classList.toggle('primary',!running);$('modeLabel').textContent=running?'SIMULATION RUNNING':'BUILD MODE'};
-$('step').onclick=()=>{if(!running)physics(1/30);draw()};$('clearWater').onclick=()=>{water.fill(0);draw()};
+$('step').onclick=()=>{if(!running)physics(1/30);draw()};
+$('rotateShip').onclick=()=>{if(!selected)return;const group=connectedAssemblies().find(g=>g.includes(selected));if(!group)return;const cx=group.reduce((s,b)=>s+b.x,0)/group.length,cy=group.reduce((s,b)=>s+b.y,0)/group.length,targets=group.map(b=>({b,x:Math.round(cx-(b.y-cy)),y:Math.round(cy+(b.x-cx))}));const own=new Set(group.map(b=>key(b.x,b.y)));if(targets.some(t=>!inside(t.x,t.y)||(!own.has(key(t.x,t.y))&&blocks.has(key(t.x,t.y))))){$('toolStatus').textContent='Cannot rotate: space is blocked';return;}for(const b of group)blocks.delete(key(b.x,b.y));for(const t of targets){t.b.x=t.x;t.b.y=t.y;t.b.angle=(t.b.angle||0)+Math.PI/2;blocks.set(key(t.x,t.y),t.b);}renderInspector();draw();};$('clearWater').onclick=()=>{water.fill(0);draw()};
 $('generate').onclick=()=>{generate($('world').value);draw()};$('level').oninput=e=>$('levelVal').textContent=e.target.value+'%';$('wave').oninput=e=>$('waveVal').textContent=e.target.value+'%';
 $('gravity').oninput=e=>$('gravityVal').textContent=e.target.value;$('density').oninput=e=>$('densityVal').textContent=(+e.target.value).toFixed(2);$('viscosity').oninput=e=>$('viscosityVal').textContent=(+e.target.value).toFixed(2);$('air').oninput=e=>$('airVal').textContent=(+e.target.value).toFixed(3);$('waterDrag').oninput=e=>$('waterDragVal').textContent=(+e.target.value).toFixed(1);
 $('copy').onclick=copySelection;$('paste').onclick=()=>pasteAt(pointer.x,pointer.y);$('save').onclick=()=>localStorage.setItem('waterworks-autosave',JSON.stringify(serialize()));$('load').onclick=()=>{let d=localStorage.getItem('waterworks-autosave');if(d)restore(JSON.parse(d))};
 $('saveBlueprint').onclick=()=>{let name=$('blueName').value.trim()||'Blueprint '+new Date().toLocaleString();let all=JSON.parse(localStorage.getItem('waterworks-blueprints')||'{}');all[name]=selected?{blocks:[{...selected,x:0,y:0}],water:[]}: {blocks:[...blocks.values()].map(b=>({...b,x:b.x,y:b.y})),water:[]};localStorage.setItem('waterworks-blueprints',JSON.stringify(all));blueprints();$('blueList').value=name};
 $('loadBlueprint').onclick=()=>{let all=JSON.parse(localStorage.getItem('waterworks-blueprints')||'{}'),d=all[$('blueList').value];if(!d)return;for(const b of d.blocks||[])addBlock(b.x,b.y,b.type,b);draw()};
 $('deleteBlueprint').onclick=()=>{let all=JSON.parse(localStorage.getItem('waterworks-blueprints')||'{}');delete all[$('blueList').value];localStorage.setItem('waterworks-blueprints',JSON.stringify(all));blueprints()};
+
+/* --- Rigid assemblies + improved water/world systems --- */
+function connectedAssemblies(){
+ const seen=new Set(),out=[];
+ for(const seed of blocks.values()){
+  const sk=key(seed.x,seed.y);if(seen.has(sk))continue;
+  const q=[seed],parts=[];seen.add(sk);
+  while(q.length){const b=q.pop();parts.push(b);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=b.x+dx,ny=b.y+dy,k=key(nx,ny),n=blocks.get(k);if(n&&!seen.has(k)){seen.add(k);q.push(n)}}}
+  out.push(parts);
+ }
+ return out;
+}
+function physics(dt){
+ simTime+=dt;
+ const gravity=+$('gravity').value,density=+$('density').value,visc=+$('viscosity').value;
+ /* Water moves as a volume, not as independent disappearing pixels. Pressure
+    spreads sideways when a column is full; horizontal flow is damped by viscosity. */
+ const next=new Float32Array(water.length),vx2=new Float32Array(water.length),vy2=new Float32Array(water.length);
+ for(let y=H-1;y>=0;y--)for(let x=0;x<W;x++){
+  const i=key(x,y),v=water[i];if(v<.005)continue;
+  let remain=v,flow=0;
+  const below=key(x,y+1);
+  if(y+1<H&&!blockAt(x,y+1)){const amount=Math.min(remain,Math.max(0,1-next[below])*.82);next[below]+=amount;remain-=amount;flow+=amount;}
+  const left=x>0?key(x-1,y):-1,right=x<W-1?key(x+1,y):-1;
+  const order=(simTime*3+x+y)%2?[left,right]:[right,left];
+  for(const ni of order){if(ni<0)continue;const xx=ni%W;if(blockAt(xx,y))continue;const diff=remain-next[ni];if(diff>.025){const amount=Math.min(diff*.5*(1-visc*.75),.22);next[ni]+=amount;remain-=amount;flow+=amount;}}
+  next[i]+=remain;vx2[i]=(flow>0?(vx2[i]||0)+Math.sign(x-W/2)*flow*.12:0);vy2[i]=Math.min(8,velY[i]+gravity*dt*.12);
+ }
+ for(let i=0;i<water.length;i++)water[i]=Math.min(1,next[i]);
+ velX.set(vx2);velY.set(vy2);
+ const air=+$('air').value,waterDrag=+$('waterDrag').value;
+ const assemblies=connectedAssemblies();
+ /* Each orthogonally connected group is a welded rigid assembly: all cells
+    share one velocity and are committed to the grid together. Anchors pin
+    their entire assembly. This prevents motors/weight from tearing ships apart. */
+ assemblies.sort((a,b)=>Math.max(...b.map(v=>v.y))-Math.max(...a.map(v=>v.y)));
+ const claimed=new Set();
+ for(const group of assemblies){
+  const pinned=group.some(b=>b.type==='anchor'||b.pinned);
+  const mass=group.reduce((s,b)=>s+(b.mass??(b.type==='ballast'?2:b.type==='float'?.45:1)),0);
+  let submerged=0,buoyancy=0,thrustX=0,thrustY=0;
+  for(const b of group){
+   for(const [ox,oy] of [[0,0],[1,0],[0,1],[1,1]])if(inside(b.x+ox,b.y+oy)&&water[key(b.x+ox,b.y+oy)]>.35){submerged++;buoyancy+=(b.buoyancy??(b.type==='float'?2.1:b.type==='balloon'?2.8:b.type==='ballast'?.12:.42))*density;}
+   if(b.type==='motor'||b.type==='propeller'){const power=b.power??(b.type==='motor'?8:12),ang=b.angle||0;thrustX+=Math.cos(ang)*power;thrustY+=Math.sin(ang)*power;}
+  }
+  const lead=group[0];let vx=lead.vx||0,vy=lead.vy||0;
+  for(const b of group){vx+=((b.vx||0)-vx)*.18;vy+=((b.vy||0)-vy)*.18;}
+  if(!pinned){
+   const displaced=Math.min(mass*1.8,buoyancy);
+   vy+=(gravity-displaced*gravity/Math.max(1,mass))*dt;
+   vx+=thrustX/Math.max(1,mass)*dt*.7;vy+=thrustY/Math.max(1,mass)*dt*.7;
+   const dragFactor=Math.max(.05,1-air*dt-waterDrag*submerged/Math.max(1,group.length)*dt*.012);
+   vx*=dragFactor;vy*=dragFactor;
+  }else{vx=0;vy=0}
+  let dx=Math.trunc(vx*dt),dy=Math.trunc(vy*dt);
+  /* Sub-cell velocity is retained; move the whole assembly only at cell boundaries. */
+  let fx=(lead.fx||0)+vx*dt,fy=(lead.fy||0)+vy*dt;
+  dx=Math.trunc(fx);dy=Math.trunc(fy);
+  if(dx){fx-=dx}if(dy){fy-=dy}
+  let canMove=(dx!==0||dy!==0);
+  if(canMove){
+   const own=new Set(group.map(b=>key(b.x,b.y)));
+   for(const b of group){const tx=b.x+dx,ty=b.y+dy,k=key(tx,ty);if(!inside(tx,ty)||(!own.has(k)&&blocks.has(k))){canMove=false;break;}}
+   if(canMove){for(const b of group)blocks.delete(key(b.x,b.y));for(const b of group){b.x+=dx;b.y+=dy;blocks.set(key(b.x,b.y),b);}}
+   else{if(dx)vx*=-.12;if(dy)vy*=-.12;fx=0;fy=0}
+  }
+  for(const b of group){b.vx=vx;b.vy=vy;b.fx=fx;b.fy=fy;if(b.type==='motor'||b.type==='propeller')b.angle+=(b.speed??4)*dt;}
+ }
+ /* Wave energy travels across the surface; tsunami is a moving high-energy pulse. */
+ if(worldType==='waves'||worldType==='tsunami'){
+  const phase=simTime*(worldType==='tsunami'?1.15:.8),amp=waveStrength*(worldType==='tsunami'?18:8);
+  for(let x=0;x<W;x++){
+   const pulse=worldType==='tsunami'?Math.exp(-Math.pow((x-(simTime*12%W))/13,2))*amp:0;
+   const surface=Math.floor(H*(1-waterLevel)+Math.sin(x*.075-phase)*amp*.45+pulse);
+   for(let y=Math.max(0,surface);y<H;y++){const i=key(x,y);if(!blockAt(x,y))water[i]=Math.max(water[i],.82);}
+  }
+ }
+}
+function generate(type=worldType){
+ water.fill(0);velX.fill(0);velY.fill(0);worldType=type;
+ waterLevel=+$('level').value/100;waveStrength=+$('wave').value/100;
+ if(type==='empty')return;
+ for(let x=0;x<W;x++){
+  let surface=Math.floor(H*(1-waterLevel));
+  if(type==='waves')surface+=Math.round(Math.sin(x*.09)*waveStrength*10+Math.sin(x*.027)*waveStrength*6);
+  if(type==='tsunami')surface+=Math.round(Math.sin(x*.045)*waveStrength*5);
+  if(type==='coast')surface+=Math.max(0,Math.round((x-W*.72)*.55));
+  if(type==='islands')surface+=Math.round(Math.sin(x*.12)*4);
+  for(let y=Math.max(0,surface);y<H;y++)water[key(x,y)]=1;
+ }
+ if(type==='tsunami'){const s=Math.floor(H*(1-waterLevel));for(let x=0;x<Math.min(28,W);x++){let h=Math.max(0,Math.round(20*Math.exp(-x/17)));for(let y=Math.max(0,s-h);y<H;y++)water[key(x,y)]=1;velX[key(x,s)]=10;}}
+ if(type==='coast'||type==='islands'){
+  const centers=type==='coast'?[{x:118,r:24,h:17}]:[{x:35,r:10,h:12},{x:82,r:15,h:18},{x:125,r:11,h:14}];
+  for(const c of centers)for(let x=Math.max(0,c.x-c.r);x<Math.min(W,c.x+c.r);x++){
+   const edge=Math.sqrt(Math.max(0,1-Math.pow((x-c.x)/c.r,2))),top=Math.floor(H*(1-waterLevel)-edge*c.h);
+   for(let y=top;y<H;y++){water[key(x,y)]=0;if(y>=top)addBlock(x,y,'stone',{pinned:true,mass:4});}
+  }
+ }
+}
+
 toolUI();blueprints();generate('still');cam.x=24;cam.y=24;resize();requestAnimationFrame(loop);
 })();
 </script>
