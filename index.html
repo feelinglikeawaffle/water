@@ -216,7 +216,7 @@ function physics(dt){
   for(const p of body.locals){
    const b=p.b;const span=Math.max(1,hullWidth*.5),positionLoad=Math.abs(p.lx)/span;const waveLoad=Math.min(1,Math.abs(oceanSlope(body.cx))*1.8+Math.abs(Math.sin(simTime*1.7+body.cx*.08))*(worldType==='still'?.05:waveStrength*.7));b.stress=Math.max(0,Math.min(1,.08+positionLoad*.42+waveLoad*.72+Math.abs(body.omega)*.08+(Math.abs(body.vx)+Math.abs(body.vy))*.025));b.px=body.cx+p.lx*Math.cos(body.angle)-p.ly*Math.sin(body.angle);
    b.py=body.cy+p.lx*Math.sin(body.angle)+p.ly*Math.cos(body.angle);
-   b.renderAngle=body.angle+(b.type==='motor'||b.type==='propeller'||b.type==='jet'?(b.spin||0):0);
+   b.renderAngle=body.angle+(b.type==='motor'||b.type==='propeller'||b.type==='jet'?(b.spin||0):(b.type==='sail'||b.type==='rudder'?(b.angle||0):0));
    b.vx=body.vx;b.vy=body.vy;
   }
  }
