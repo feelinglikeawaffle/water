@@ -50,7 +50,8 @@ const defs=[
 const blocks=new Map(), water=new Float32Array(W*H),velX=new Float32Array(W*H),velY=new Float32Array(W*H),temperature=new Float32Array(W*H);
 let selectedTool='wood',selected=null,running=false,simTime=0,acc=0,last=0,frame=0,fps=0,cam={x:0,y:0,z:1},followCam=false,stressView=false,globalThrottle=0,pointer={x:0,y:0},drag=null,space=false,clipboard=null,worldType='still',waveStrength=.35,waterLevel=.58;
 const key=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&y>=0&&x<W&&y<H,blockAt=(x,y)=>blocks.get(key(x,y));
-function oceanHeight(wx){const t=simTime,base=H*(1-waterLevel);if(worldType==='still'||worldType==='empty')return base;const intensity=worldType==='tsunami'?1.85:1.35;const swell=Math.sin(wx*.025-t*.62)*3.2+Math.sin(wx*.052-t*.91+1.1)*1.9+Math.sin(wx*.011-t*.31)*3.8;const chop=Math.sin(wx*.14-t*1.9)*1.05+Math.sin(wx*.23-t*2.7+2)*.62+Math.sin(wx*.39-t*3.6)*.28;const longSet=Math.sin(t*.32-wx*.006)*2.2;const surge=worldType==='tsunami'?(Math.sin(t*.48-wx*.018)*7+Math.pow(Math.max(0,Math.sin(t*.19-wx*.009)),3)*14):0;return base-(swell*intensity+chop*intensity+longSet+surge)*waveStrength;}\nfunction oceanSlope(wx){return (oceanHeight(wx+.35)-oceanHeight(wx-.35))/.7;}
+function oceanHeight(wx){const t=simTime,base=H*(1-waterLevel);if(worldType==='still'||worldType==='empty')return base;const intensity=worldType==='tsunami'?1.85:1.35;const swell=Math.sin(wx*.025-t*.62)*3.2+Math.sin(wx*.052-t*.91+1.1)*1.9+Math.sin(wx*.011-t*.31)*3.8;const chop=Math.sin(wx*.14-t*1.9)*1.05+Math.sin(wx*.23-t*2.7+2)*.62+Math.sin(wx*.39-t*3.6)*.28;const longSet=Math.sin(t*.32-wx*.006)*2.2;const surge=worldType==='tsunami'?(Math.sin(t*.48-wx*.018)*7+Math.pow(Math.max(0,Math.sin(t*.19-wx*.009)),3)*14):0;return base-(swell*intensity+chop*intensity+longSet+surge)*waveStrength;}
+function oceanSlope(wx){return (oceanHeight(wx+.35)-oceanHeight(wx-.35))/.7;}
 function addBlock(x,y,type=selectedTool,props={}){if(!inside(x,y)||type==='select'||type==='erase')return;blocks.set(key(x,y),{x,y,type,...props,angle:props.angle||0,vx:props.vx||0,vy:props.vy||0,omega:props.omega||0,health:props.health??100});}
 function removeBlock(x,y){blocks.delete(key(x,y));if(selected&&selected.x===x&&selected.y===y)selected=null}
 function generate(type=worldType){water.fill(0);velX.fill(0);velY.fill(0);worldType=type;waterLevel=+$('level').value/100;waveStrength=+$('wave').value/100;if(type==='empty')return;for(let x=0;x<W;x++){let surface=Math.floor(H*(1-waterLevel));if(type==='waves'||type==='tsunami')surface=Math.round(oceanHeight(x));for(let y=Math.max(0,surface);y<H;y++)water[key(x,y)]=1;}if(type==='tsunami'){for(let x=0;x<Math.min(28,W);x++){let h=Math.max(0,Math.round(18*Math.exp(-x/16)));for(let y=Math.max(0,Math.floor(H*(1-waterLevel))-h);y<H;y++)water[key(x,y)]=1;velX[key(x,Math.floor(H*(1-waterLevel)))]=8;}}}
@@ -153,7 +154,7 @@ function physics(dt){
  for(let x=0;x<W;x++){const top=Math.max(0,Math.min(H,Math.floor(oceanHeight(x))));for(let y=0;y<H;y++){const i=key(x,y);water[i]=y>=top&&!blockAt(x,y)?1:0;}}
  const groups=connectedAssemblies();
  for(const group of groups){
-  let body=group.find(b=>b._body)?. _body;
+  let body=group.find(b=>b._body)?._body;
   if(!body){
    const cx=group.reduce((v,b)=>v+(b.px??b.x),0)/group.length,cy=group.reduce((v,b)=>v+(b.py??b.y),0)/group.length;
    body={cx,cy,vx:0,vy:0,angle:0,omega:0,locals:group.map(b=>({b,lx:b.x-cx,ly:b.y-cy}))};
@@ -190,7 +191,8 @@ function physics(dt){
   let minLX=Infinity,maxLX=-Infinity,minLY=Infinity,maxLY=-Infinity;
   for(const p of body.locals){minLX=Math.min(minLX,p.lx);maxLX=Math.max(maxLX,p.lx);minLY=Math.min(minLY,p.ly);maxLY=Math.max(maxLY,p.ly);}
   const hullWidth=maxLX-minLX+1,hullHeight=maxLY-minLY+1;
-  const localSlope=oceanSlope(body.cx),targetAngle=Math.atan(localSlope);\n  const levelRighting=gravity*(.16+Math.min(1.5,hullWidth/Math.max(1,hullHeight))*.06);
+  const localSlope=oceanSlope(body.cx),targetAngle=Math.atan(localSlope);
+  const levelRighting=gravity*(.16+Math.min(1.5,hullWidth/Math.max(1,hullHeight))*.06);
   if(!pinned){
    body.vy+=(gravity-buoy*gravity/mass)*dt;
    body.vx+=forceX/mass*dt*1.8;body.vy+=forceY/mass*dt*1.8;
@@ -200,7 +202,8 @@ function physics(dt){
    body.vy*=Math.exp(-(1.15+wetRatio*waterDrag*.9)*dt);
    // sin(2a) makes both 0° and 180° stable; a vertical 90° hull is
    // unstable, but remains possible when waves/forces overpower the righting moment.
-   const angleError=Math.atan2(Math.sin(targetAngle-body.angle),Math.cos(targetAngle-body.angle));\n   body.omega+=(torque/mass+angleError*levelRighting)*dt;
+   const angleError=Math.atan2(Math.sin(targetAngle-body.angle),Math.cos(targetAngle-body.angle));
+   body.omega+=(torque/mass+angleError*levelRighting)*dt;
    body.omega*=Math.exp(-(2.2+wetRatio*2.8)*dt);
    body.cx+=body.vx*dt;body.cy+=body.vy*dt;body.angle+=body.omega*dt;
   }else{body.vx=body.vy=body.omega=0;}
